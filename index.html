@@ -617,10 +617,10 @@
 
                     <div
                         class="card"
-                        data-src="https://www.youtube.com/embed/NuSKqQhsb-Q?si=TLFqiQMTPLEKv_7u"
-                        data-type="youtube"
-                        data-preview="https://www.youtube.com/embed/NuSKqQhsb-Q?si=TLFqiQMTPLEKv_7u"
-                        data-preview-type="youtube"
+                        data-src="https://github.com/yu0ji/yu0ji.github.io/releases/download/v1.0/Consumerism.mp4"
+                        data-type="video"
+                        data-preview="https://github.com/yu0ji/yu0ji.github.io/releases/download/v1.0/Consumerism.mp4"
+                        data-preview-type="video"
                         data-thumb="https://img.youtube.com/vi/NuSKqQhsb-Q/maxresdefault.jpg"
                     >
                         <div class="thumb"></div>
@@ -628,10 +628,10 @@
 
                     <div
                         class="card"
-                        data-src="https://www.youtube.com/embed/ymLVKwVSStM?si=yzE2M3RMUQhlIexD"
-                        data-type="youtube"
-                        data-preview="https://www.youtube.com/embed/ymLVKwVSStM?si=yzE2M3RMUQhlIexD"
-                        data-preview-type="youtube"
+                        data-src="https://github.com/yu0ji/yu0ji.github.io/releases/download/v1.0/Wildflover.Slide.mp4"
+                        data-type="video"
+                        data-preview="https://github.com/yu0ji/yu0ji.github.io/releases/download/v1.0/Wildflover.Slide.mp4"
+                        data-preview-type="video"
                         data-thumb="https://img.youtube.com/vi/ymLVKwVSStM/maxresdefault.jpg"
                     >
                         <div class="thumb"></div>
@@ -844,11 +844,14 @@
                     const v = document.createElement("video");
                     v.src = src;
                     v.autoplay = true;
-                    v.muted = false;
+                    v.muted = true;
                     v.loop = true;
                     v.playsInline = true;
                     bgPreview.appendChild(v);
-                    v.play().catch(() => {});
+                    v.play().then(() => {
+                        v.muted = false;
+                        v.volume = 0.7;
+                    }).catch(() => {});
                 }
                 // Even for placeholder, show the dim overlay (no media, just dark)
                 bgPreview.classList.add("visible");
@@ -1017,18 +1020,48 @@
                 return (match && match[2].length === 11) ? match[2] : null;
             }
 
+            // All quality levels from highest to lowest — we try each in order
+            const QUALITY_LEVELS = ["highres", "hd2160", "hd1440", "hd1080", "hd720", "large"];
+
+            function forceMaxQuality(player) {
+                if (!player || typeof player.getAvailableQualityLevels !== "function") return;
+                try {
+                    const available = player.getAvailableQualityLevels();
+                    // Find the highest quality available for this video
+                    let best = null;
+                    for (const q of QUALITY_LEVELS) {
+                        if (available.indexOf(q) !== -1) {
+                            best = q;
+                            break;
+                        }
+                    }
+                    if (best) {
+                        if (typeof player.setPlaybackQualityRange === "function") {
+                            player.setPlaybackQualityRange(best, best);
+                        }
+                        if (typeof player.setPlaybackQuality === "function") {
+                            player.setPlaybackQuality(best);
+                        }
+                    }
+                } catch(e) {}
+            }
+
             window.onPlayerReady = function(event) {
                 event.target.unMute();
                 event.target.setVolume(100);
                 event.target.playVideo();
-                if (typeof event.target.setPlaybackQuality === "function") {
-                    event.target.setPlaybackQuality("highres");
-                }
+                forceMaxQuality(event.target);
+                // Retry after a short delay once the video has buffered enough to know available qualities
+                setTimeout(() => forceMaxQuality(event.target), 1500);
+                setTimeout(() => forceMaxQuality(event.target), 3500);
             };
 
             window.onPlayerStateChange = function(event) {
                 if (event.data === YT.PlayerState.PLAYING) {
                     startProgressLoop();
+                    // Quality can reset after buffering/seeking, so re-apply
+                    forceMaxQuality(event.target);
+                    setTimeout(() => forceMaxQuality(event.target), 1000);
                 } else {
                     stopProgressLoop();
                 }
@@ -1085,6 +1118,8 @@
 
                 if (isYouTube) {
                     ytPlayer.seekTo(percentage * duration, true);
+                    // Re-apply quality after seek as YouTube may reset it
+                    setTimeout(() => forceMaxQuality(ytPlayer), 500);
                 } else if (activeVideo) {
                     activeVideo.currentTime = percentage * duration;
                 }
@@ -1144,7 +1179,6 @@
                         height: "100%",
                         width: "100%",
                         videoId: videoId,
-                        suggestedQuality: "highres",
                         playerVars: {
                             autoplay: 1,
                             controls: 0,
@@ -1154,7 +1188,7 @@
                             showinfo: 0,
                             iv_load_policy: 3,
                             modestbranding: 1,
-                            vq: "hd1080"
+                            vq: "hd2160"
                         },
                         events: {
                             onReady: window.onPlayerReady,
@@ -1171,6 +1205,7 @@
                     v.autoplay = true;
                     v.loop = true;
                     v.playsInline = true;
+                    v.volume = 0.7;
                     lbMedia.appendChild(v);
                     activeVideo = v;
 
