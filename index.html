@@ -370,7 +370,7 @@
             }
             .lb-inner {
                 width: calc(100% - 64px);
-                max-width: 1000px;
+                max-width: 1280px;
                 opacity: 0;
                 transform: translateY(12px);
                 transition:
@@ -388,6 +388,7 @@
                 background: #1a1917;
                 overflow: hidden;
                 border-radius: 5px;
+                border: 1.5px solid #ffffff;
             }
             .lb-media {
                 width: 100%;
@@ -824,7 +825,7 @@
                 requestAnimationFrame(animLogo);
             })();
 
-            // ── Background preview (immediate, debounced leave, robust play fallback) ──
+            // ── Background preview (0.8s hover delay, debounced leave, robust play fallback) ──
             const bgPreview = document.getElementById("bg-preview");
             const cards = document.querySelectorAll(".card");
             let hoverTimer = null,
@@ -834,6 +835,9 @@
                 previewShown = false;
 
             function showBgPreview(card) {
+                // Do not show preview if the lightbox is currently open
+                if (lb.classList.contains("open")) return;
+                
                 if (cleanupTimer) {
                     clearTimeout(cleanupTimer);
                     cleanupTimer = null;
@@ -906,30 +910,48 @@
             }
 
             cards.forEach((card) => {
-                // Trigger preview instantly when entering the card
+                // Trigger preview after 0.8s hover delay when entering
                 card.addEventListener("mouseenter", () => {
                     if (hideTimer) {
                         clearTimeout(hideTimer);
                         hideTimer = null;
                     }
-                    if (activeCard === card && previewShown) return;
+                    if (activeCard === card && (previewShown || hoverTimer)) return;
+                    
+                    if (hoverTimer) clearTimeout(hoverTimer);
                     activeCard = card;
-                    showBgPreview(card);
+                    hoverTimer = setTimeout(() => {
+                        if (activeCard === card) {
+                            showBgPreview(card);
+                        }
+                        hoverTimer = null;
+                    }, 800);
                 });
 
-                // Detect mouse movements inside the card to ensure it starts playing or stays playing
+                // Detect mouse movements inside the card to trigger the delay if not already active
                 card.addEventListener("mousemove", () => {
                     if (hideTimer) {
                         clearTimeout(hideTimer);
                         hideTimer = null;
                     }
-                    if (activeCard === card && previewShown) return;
+                    if (activeCard === card && (previewShown || hoverTimer)) return;
+                    
+                    if (hoverTimer) clearTimeout(hoverTimer);
                     activeCard = card;
-                    showBgPreview(card);
+                    hoverTimer = setTimeout(() => {
+                        if (activeCard === card) {
+                            showBgPreview(card);
+                        }
+                        hoverTimer = null;
+                    }, 800);
                 });
 
-                // Debounce the leave event to prevent transient render glitches/cursor redraws from restarting the preview
+                // Debounce the leave event and clear any pending hover triggers
                 card.addEventListener("mouseleave", () => {
+                    if (hoverTimer) {
+                        clearTimeout(hoverTimer);
+                        hoverTimer = null;
+                    }
                     if (hideTimer) clearTimeout(hideTimer);
                     hideTimer = setTimeout(() => {
                         if (activeCard === card) {
@@ -1211,6 +1233,7 @@
             });
 
             function openLb(card) {
+                hideBgPreview();
                 const { type, src } = card.dataset;
                 lbMedia.innerHTML = "";
                 
