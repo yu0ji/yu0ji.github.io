@@ -788,7 +788,7 @@
                 requestAnimationFrame(animLogo);
             })();
 
-            // ── Background preview (4s hover delay) ──────────────
+            // ── Background preview (0.8s hover delay) ──────────────
             const bgPreview = document.getElementById("bg-preview");
             const cards = document.querySelectorAll(".card");
             let hoverTimer = null,
@@ -806,14 +806,14 @@
                     f.src =
                         src +
                         (src.includes("?") ? "&" : "?") +
-                        "autoplay=1&mute=1&loop=1&controls=0&modestbranding=1&playsinline=1";
+                        "autoplay=1&mute=0&loop=1&controls=0&modestbranding=1&playsinline=1";
                     f.allow = "autoplay; fullscreen";
                     bgPreview.appendChild(f);
                 } else if (type === "video" && src) {
                     const v = document.createElement("video");
                     v.src = src;
                     v.autoplay = true;
-                    v.muted = true;
+                    v.muted = false;
                     v.loop = true;
                     v.playsInline = true;
                     bgPreview.appendChild(v);
@@ -842,7 +842,7 @@
                     activeCard = card;
                     hoverTimer = setTimeout(() => {
                         if (activeCard === card) showBgPreview(card);
-                    }, 4000);
+                    }, 800);
                 });
                 card.addEventListener("mouseleave", () => {
                     if (activeCard === card) {
