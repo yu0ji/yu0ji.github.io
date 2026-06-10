@@ -824,10 +824,11 @@
                 requestAnimationFrame(animLogo);
             })();
 
-            // ── Background preview (immediate, triggered on movement) ──
+            // ── Background preview (immediate, debounced leave, robust play fallback) ──
             const bgPreview = document.getElementById("bg-preview");
             const cards = document.querySelectorAll(".card");
             let hoverTimer = null,
+                hideTimer = null,
                 cleanupTimer = null,
                 activeCard = null,
                 previewShown = false;
@@ -854,14 +855,30 @@
                     const v = document.createElement("video");
                     v.src = src;
                     v.autoplay = true;
-                    v.muted = true;
+                    v.muted = true; // Start muted to satisfy browser autoplay policies
                     v.loop = true;
                     v.playsInline = true;
                     bgPreview.appendChild(v);
+                    
+                    // Attempt to play
                     v.play().then(() => {
+                        // Once playing, attempt to unmute
                         v.muted = false;
                         v.volume = 0.7;
-                    }).catch(() => {});
+                        
+                        // Check if browser paused the video due to unmute policy
+                        setTimeout(() => {
+                            if (v.paused) {
+                                // Fallback: mute it again and resume playback so it plays smoothly
+                                v.muted = true;
+                                v.play().catch(() => {});
+                            }
+                        }, 50);
+                    }).catch(() => {
+                        // Muted fallback on direct autoplay rejection
+                        v.muted = true;
+                        v.play().catch(() => {});
+                    });
                 }
                 // Even for placeholder, show the dim overlay (no media, just dark)
                 bgPreview.classList.add("visible");
@@ -891,22 +908,35 @@
             cards.forEach((card) => {
                 // Trigger preview instantly when entering the card
                 card.addEventListener("mouseenter", () => {
-                    if (activeCard === card && previewShown) return;
-                    activeCard = card;
-                    showBgPreview(card);
-                });
-
-                // Detect mouse movements inside the card to ensure the preview triggers or stays playing
-                card.addEventListener("mousemove", () => {
-                    if (activeCard === card && previewShown) return;
-                    activeCard = card;
-                    showBgPreview(card);
-                });
-
-                card.addEventListener("mouseleave", () => {
-                    if (activeCard === card) {
-                        hideBgPreview();
+                    if (hideTimer) {
+                        clearTimeout(hideTimer);
+                        hideTimer = null;
                     }
+                    if (activeCard === card && previewShown) return;
+                    activeCard = card;
+                    showBgPreview(card);
+                });
+
+                // Detect mouse movements inside the card to ensure it starts playing or stays playing
+                card.addEventListener("mousemove", () => {
+                    if (hideTimer) {
+                        clearTimeout(hideTimer);
+                        hideTimer = null;
+                    }
+                    if (activeCard === card && previewShown) return;
+                    activeCard = card;
+                    showBgPreview(card);
+                });
+
+                // Debounce the leave event to prevent transient render glitches/cursor redraws from restarting the preview
+                card.addEventListener("mouseleave", () => {
+                    if (hideTimer) clearTimeout(hideTimer);
+                    hideTimer = setTimeout(() => {
+                        if (activeCard === card) {
+                            hideBgPreview();
+                        }
+                        hideTimer = null;
+                    }, 200);
                 });
             });
 
