@@ -8,6 +8,11 @@
             name="description"
             content="Yuuji is a freelance video editor and creative artist based in Germany."
         />
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'none'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://img.youtube.com; media-src 'self' https://github.com https://*.githubusercontent.com; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com; connect-src 'self' https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self';"
+        />
+        <meta name="referrer" content="strict-origin-when-cross-origin" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link
@@ -582,7 +587,7 @@
                                 class="prox-text"
                                 href="https://x.com/FXyuujii"
                                 target="_blank"
-                                rel="noopener"
+                                rel="noopener noreferrer"
                                 >Twitter&#160;/&#160;X
                                 <span class="arr">&#8599;</span></a
                             >
@@ -819,14 +824,19 @@
                 requestAnimationFrame(animLogo);
             })();
 
-            // ── Background preview (0.8s hover delay) ──────────────
+            // ── Background preview (immediate, triggered on movement) ──
             const bgPreview = document.getElementById("bg-preview");
             const cards = document.querySelectorAll(".card");
             let hoverTimer = null,
+                cleanupTimer = null,
                 activeCard = null,
                 previewShown = false;
 
             function showBgPreview(card) {
+                if (cleanupTimer) {
+                    clearTimeout(cleanupTimer);
+                    cleanupTimer = null;
+                }
                 const type = card.dataset.previewType;
                 const src = card.dataset.preview;
                 const existing = bgPreview.querySelector("video,iframe");
@@ -859,29 +869,42 @@
             }
 
             function hideBgPreview() {
-                clearTimeout(hoverTimer);
-                hoverTimer = null;
+                if (hoverTimer) {
+                    clearTimeout(hoverTimer);
+                    hoverTimer = null;
+                }
+                if (cleanupTimer) {
+                    clearTimeout(cleanupTimer);
+                    cleanupTimer = null;
+                }
                 activeCard = null;
                 if (!previewShown) return;
                 previewShown = false;
                 bgPreview.classList.remove("visible");
-                setTimeout(() => {
+                cleanupTimer = setTimeout(() => {
                     const existing = bgPreview.querySelector("video,iframe");
                     if (existing) existing.remove();
+                    cleanupTimer = null;
                 }, 950);
             }
 
             cards.forEach((card) => {
+                // Trigger preview instantly when entering the card
                 card.addEventListener("mouseenter", () => {
+                    if (activeCard === card && previewShown) return;
                     activeCard = card;
-                    hoverTimer = setTimeout(() => {
-                        if (activeCard === card) showBgPreview(card);
-                    }, 800);
+                    showBgPreview(card);
                 });
+
+                // Detect mouse movements inside the card to ensure the preview triggers or stays playing
+                card.addEventListener("mousemove", () => {
+                    if (activeCard === card && previewShown) return;
+                    activeCard = card;
+                    showBgPreview(card);
+                });
+
                 card.addEventListener("mouseleave", () => {
                     if (activeCard === card) {
-                        clearTimeout(hoverTimer);
-                        activeCard = null;
                         hideBgPreview();
                     }
                 });
