@@ -4,8 +4,10 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>FXYuuji</title>
+    <title>Yuuji — Video Editor</title>
     <meta name="description" content="Yuuji is a freelance video editor and creative artist based in Germany." />
+    <!-- Favicon: swapped to the real rounded logo by JS on load -->
+    <link id="favicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' ry='14' fill='%23111010'/%3E%3Ctext x='32' y='46' font-family='Inter%2Csystem-ui%2Csans-serif' font-size='38' font-weight='500' fill='%23d4d0c8' text-anchor='middle'%3EY%3C/text%3E%3C/svg%3E" />
     <meta http-equiv="Content-Security-Policy"
         content="default-src 'none'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://img.youtube.com; media-src 'self' https://github.com https://*.githubusercontent.com; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com; connect-src 'self' https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'self';" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
@@ -703,6 +705,43 @@
     <script>
         window.addEventListener("DOMContentLoaded", () => {
             document.body.classList.add("loaded");
+
+            // ── Generate canvas favicon from the logo image ──────
+            const faviconLink = document.getElementById("favicon");
+            const logoImg = document.querySelector(".logo img");
+            if (faviconLink && logoImg) {
+                function buildFavicon() {
+                    try {
+                        const SIZE = 64;
+                        const RADIUS = 14; // soft round corners
+                        const cv = document.createElement("canvas");
+                        cv.width = SIZE;
+                        cv.height = SIZE;
+                        const ctx = cv.getContext("2d");
+                        // Clip path with rounded rect
+                        ctx.beginPath();
+                        ctx.moveTo(RADIUS, 0);
+                        ctx.lineTo(SIZE - RADIUS, 0);
+                        ctx.quadraticCurveTo(SIZE, 0, SIZE, RADIUS);
+                        ctx.lineTo(SIZE, SIZE - RADIUS);
+                        ctx.quadraticCurveTo(SIZE, SIZE, SIZE - RADIUS, SIZE);
+                        ctx.lineTo(RADIUS, SIZE);
+                        ctx.quadraticCurveTo(0, SIZE, 0, SIZE - RADIUS);
+                        ctx.lineTo(0, RADIUS);
+                        ctx.quadraticCurveTo(0, 0, RADIUS, 0);
+                        ctx.closePath();
+                        ctx.clip();
+                        ctx.drawImage(logoImg, 0, 0, SIZE, SIZE);
+                        faviconLink.type = "image/png";
+                        faviconLink.href = cv.toDataURL("image/png");
+                    } catch(e) { /* cross-origin guard: keep SVG fallback */ }
+                }
+                if (logoImg.complete && logoImg.naturalWidth) {
+                    buildFavicon();
+                } else {
+                    logoImg.addEventListener("load", buildFavicon, { once: true });
+                }
+            }
 
             // Load thumbnails from data-thumb
             document.querySelectorAll(".card").forEach((card) => {
