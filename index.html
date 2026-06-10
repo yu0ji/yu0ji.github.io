@@ -376,21 +376,61 @@
                 opacity: 1;
                 transform: translateY(0);
             }
-            .lb-media {
+            .lb-media-wrap {
+                position: relative;
                 width: 100%;
                 aspect-ratio: 16/9;
                 background: #1a1917;
                 overflow: hidden;
                 border-radius: 5px;
             }
+            .lb-media {
+                width: 100%;
+                height: 100%;
+                background: #1a1917;
+                overflow: hidden;
+                border-radius: 5px;
+            }
             .lb-media video,
             .lb-media iframe,
-            .lb-media img {
+            .lb-media img,
+            .lb-media div {
                 width: 100%;
                 height: 100%;
                 object-fit: cover;
                 display: block;
                 border: none;
+            }
+            .lb-video-overlay {
+                position: absolute;
+                inset: 0;
+                z-index: 5;
+                cursor: pointer;
+            }
+            .lb-timeline-container {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                height: 12px;
+                cursor: pointer;
+                z-index: 10;
+                display: flex;
+                align-items: flex-end;
+            }
+            .lb-timeline-bg {
+                width: 100%;
+                height: 3px;
+                background: rgba(255, 255, 255, 0.25);
+                transition: height 0.15s ease;
+            }
+            .lb-timeline-container:hover .lb-timeline-bg {
+                height: 6px;
+            }
+            .lb-timeline-progress {
+                height: 100%;
+                width: 0%;
+                background: #ffffff;
             }
             .lb-close-row {
                 display: flex;
@@ -471,7 +511,15 @@
 
         <div id="lb" role="dialog" aria-modal="true">
             <div class="lb-inner">
-                <div class="lb-media" id="lb-media"></div>
+                <div class="lb-media-wrap">
+                    <div class="lb-media" id="lb-media"></div>
+                    <div class="lb-video-overlay" id="lb-video-overlay"></div>
+                    <div class="lb-timeline-container" id="lb-timeline-container">
+                        <div class="lb-timeline-bg">
+                            <div class="lb-timeline-progress" id="lb-timeline-progress"></div>
+                        </div>
+                    </div>
+                </div>
                 <div class="lb-close-row">
                     <button class="lb-close" id="lb-close">Close</button>
                 </div>
@@ -941,28 +989,199 @@
             // ── Lightbox ──────────────────────────────────────────
             const lb = document.getElementById("lb");
             const lbMedia = document.getElementById("lb-media");
+            const timelineContainer = document.getElementById("lb-timeline-container");
+            const timelineProgress = document.getElementById("lb-timeline-progress");
+            const videoOverlay = document.getElementById("lb-video-overlay");
+
+            let ytPlayer = null;
+            let activeVideo = null;
+            let progressInterval = null;
+            let isScrubbing = false;
+
+            // Load YouTube API script dynamically
+            const tag = document.createElement("script");
+            tag.src = "https://www.youtube.com/iframe_api";
+            const firstScriptTag = document.getElementsByTagName("script")[0];
+            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+            function getYouTubeId(url) {
+                const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+                const match = url.match(regExp);
+                return (match && match[2].length === 11) ? match[2] : null;
+            }
+
+            window.onPlayerReady = function(event) {
+                event.target.unMute();
+                event.target.setVolume(100);
+                event.target.playVideo();
+                if (typeof event.target.setPlaybackQuality === "function") {
+                    event.target.setPlaybackQuality("hd1080");
+                }
+            };
+
+            window.onPlayerStateChange = function(event) {
+                if (event.data === YT.PlayerState.PLAYING) {
+                    startProgressLoop();
+                } else {
+                    stopProgressLoop();
+                }
+            };
+
+            function startProgressLoop() {
+                if (progressInterval) clearInterval(progressInterval);
+                progressInterval = setInterval(() => {
+                    if (isScrubbing) return;
+
+                    let currentTime = 0;
+                    let duration = 0;
+
+                    if (ytPlayer && typeof ytPlayer.getCurrentTime === "function" && typeof ytPlayer.getDuration === "function") {
+                        currentTime = ytPlayer.getCurrentTime();
+                        duration = ytPlayer.getDuration();
+                    } else if (activeVideo) {
+                        currentTime = activeVideo.currentTime;
+                        duration = activeVideo.duration;
+                    }
+
+                    if (duration > 0) {
+                        const pct = (currentTime / duration) * 100;
+                        timelineProgress.style.width = pct + "%";
+                    }
+                }, 100);
+            }
+
+            function stopProgressLoop() {
+                if (progressInterval) {
+                    clearInterval(progressInterval);
+                    progressInterval = null;
+                }
+            }
+
+            function handleTimelineSeek(e) {
+                let duration = 0;
+                let isYouTube = false;
+
+                if (ytPlayer && typeof ytPlayer.getDuration === "function") {
+                    duration = ytPlayer.getDuration();
+                    isYouTube = true;
+                } else if (activeVideo) {
+                    duration = activeVideo.duration;
+                }
+
+                if (!duration) return;
+
+                const rect = timelineContainer.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const percentage = Math.max(0, Math.min(1, clickX / rect.width));
+
+                timelineProgress.style.width = (percentage * 100) + "%";
+
+                if (isYouTube) {
+                    ytPlayer.seekTo(percentage * duration, true);
+                } else if (activeVideo) {
+                    activeVideo.currentTime = percentage * duration;
+                }
+            }
+
+            timelineContainer.addEventListener("mousedown", (e) => {
+                isScrubbing = true;
+                handleTimelineSeek(e);
+            });
+
+            document.addEventListener("mousemove", (e) => {
+                if (isScrubbing) {
+                    handleTimelineSeek(e);
+                }
+            });
+
+            document.addEventListener("mouseup", () => {
+                isScrubbing = false;
+            });
+
+            videoOverlay.addEventListener("click", () => {
+                if (ytPlayer && typeof ytPlayer.getPlayerState === "function") {
+                    const state = ytPlayer.getPlayerState();
+                    if (state === YT.PlayerState.PLAYING) {
+                        ytPlayer.pauseVideo();
+                    } else {
+                        ytPlayer.playVideo();
+                    }
+                } else if (activeVideo) {
+                    if (activeVideo.paused) {
+                        activeVideo.play();
+                    } else {
+                        activeVideo.pause();
+                    }
+                }
+            });
 
             function openLb(card) {
                 const { type, src } = card.dataset;
                 lbMedia.innerHTML = "";
+                
+                stopProgressLoop();
+                ytPlayer = null;
+                activeVideo = null;
+                timelineProgress.style.width = "0%";
+
                 if (type === "youtube" && src) {
-                    const f = document.createElement("iframe");
-                    f.src =
-                        src + (src.includes("?") ? "&" : "?") + "autoplay=1";
-                    f.allow = "autoplay; fullscreen";
-                    f.allowFullscreen = true;
-                    lbMedia.appendChild(f);
+                    videoOverlay.style.display = "block";
+                    timelineContainer.style.display = "flex";
+
+                    const videoId = getYouTubeId(src);
+                    const container = document.createElement("div");
+                    container.id = "yt-player-placeholder";
+                    lbMedia.appendChild(container);
+
+                    ytPlayer = new YT.Player("yt-player-placeholder", {
+                        height: "100%",
+                        width: "100%",
+                        videoId: videoId,
+                        playerVars: {
+                            autoplay: 1,
+                            controls: 0,
+                            disablekb: 1,
+                            fs: 0,
+                            rel: 0,
+                            showinfo: 0,
+                            iv_load_policy: 3,
+                            modestbranding: 1,
+                            vq: "hd1080"
+                        },
+                        events: {
+                            onReady: window.onPlayerReady,
+                            onStateChange: window.onPlayerStateChange
+                        }
+                    });
                 } else if (type === "video" && src) {
+                    videoOverlay.style.display = "block";
+                    timelineContainer.style.display = "flex";
+
                     const v = document.createElement("video");
                     v.src = src;
-                    v.controls = true;
+                    v.controls = false;
                     v.autoplay = true;
+                    v.loop = true;
+                    v.playsInline = true;
                     lbMedia.appendChild(v);
+                    activeVideo = v;
+
+                    v.addEventListener("play", startProgressLoop);
+                    v.addEventListener("pause", stopProgressLoop);
+                    v.addEventListener("ended", stopProgressLoop);
+
+                    v.play().catch(() => {});
                 } else if (type === "image" && src) {
+                    videoOverlay.style.display = "none";
+                    timelineContainer.style.display = "none";
+
                     const img = document.createElement("img");
                     img.src = src;
                     lbMedia.appendChild(img);
                 } else {
+                    videoOverlay.style.display = "none";
+                    timelineContainer.style.display = "none";
+
                     lbMedia.innerHTML =
                         '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"><span style="font-size:11px;letter-spacing:.08em;color:#444">Coming soon</span></div>';
                 }
@@ -973,6 +1192,20 @@
             function closeLb() {
                 lb.classList.remove("open");
                 document.body.style.overflow = "";
+                stopProgressLoop();
+                if (ytPlayer) {
+                    try {
+                        ytPlayer.destroy();
+                    } catch (e) {}
+                    ytPlayer = null;
+                }
+                if (activeVideo) {
+                    try {
+                        activeVideo.pause();
+                    } catch (e) {}
+                    activeVideo = null;
+                }
+                timelineProgress.style.width = "0%";
                 setTimeout(() => (lbMedia.innerHTML = ""), 350);
             }
 
@@ -981,7 +1214,11 @@
                 .getElementById("lb-close")
                 .addEventListener("click", closeLb);
             lb.addEventListener("click", (e) => {
-                if (e.target === lb) closeLb();
+                const isInsideWrap = e.target.closest(".lb-media-wrap");
+                const isCloseBtn = e.target.closest("#lb-close");
+                if (!isInsideWrap || isCloseBtn) {
+                    closeLb();
+                }
             });
             document.addEventListener("keydown", (e) => {
                 if (e.key === "Escape") closeLb();
