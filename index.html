@@ -401,6 +401,13 @@
                 display: block;
                 border: none;
             }
+            #yt-player-placeholder {
+                width: 106% !important;
+                height: 106% !important;
+                position: absolute !important;
+                top: -3% !important;
+                left: -3% !important;
+            }
             .lb-video-overlay {
                 position: absolute;
                 inset: 0;
@@ -1015,7 +1022,7 @@
                 event.target.setVolume(100);
                 event.target.playVideo();
                 if (typeof event.target.setPlaybackQuality === "function") {
-                    event.target.setPlaybackQuality("hd1080");
+                    event.target.setPlaybackQuality("highres");
                 }
             };
 
@@ -1137,6 +1144,7 @@
                         height: "100%",
                         width: "100%",
                         videoId: videoId,
+                        suggestedQuality: "highres",
                         playerVars: {
                             autoplay: 1,
                             controls: 0,
